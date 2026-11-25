@@ -31,6 +31,8 @@ swift_library(
         # W7-RD2: «Дата регистрации»
         "//Wraithgram/Features/RegDate:WGRegDate",
         "//Wraithgram/Features/SessionBackup:WGSessionBackup",
+        "//Wraithgram/Features/ExteraBadge:WGExteraBadge",
+        "//Wraithgram/Features/QuickActions:WGQuickActions",
     ],
     visibility = [
         "//visibility:public",

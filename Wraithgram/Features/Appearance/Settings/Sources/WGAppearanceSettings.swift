@@ -21,8 +21,8 @@ public enum WGAppearanceSettings {
     // MARK: Bubbles
 
     public static let bubbleEditor = WGSetting<Bool>("appearance.bubbles.editor", default: false)
-    public static let bubbleIncomingRadius = WGSetting<Double>("appearance.bubbles.incomingRadius", default: 16.0)
-    public static let bubbleOutgoingRadius = WGSetting<Double>("appearance.bubbles.outgoingRadius", default: 16.0)
+    public static let bubbleIncomingRadius = WGSetting<Double>("appearance.bubbles.incomingRadius", default: 18.0)
+    public static let bubbleOutgoingRadius = WGSetting<Double>("appearance.bubbles.outgoingRadius", default: 18.0)
     /// Horizontal text inset inside a bubble, pt.
     public static let bubblePadding = WGSetting<Double>("appearance.bubbles.padding", default: 11.0)
     /// Share of the upstream maximum bubble width, %.
@@ -41,7 +41,7 @@ public enum WGAppearanceSettings {
     // MARK: Stickers
 
     /// %, 50…200 (bigger than 100 since 2026-10-27; a big sticker still fits the chat's width).
-    public static let stickerSize = WGSetting<Double>("appearance.stickers.size", default: 100.0)
+    public static let stickerSize = WGSetting<Double>("appearance.stickers.size", default: 110.0)
     public static let stickerHideTime = WGSetting<Bool>("appearance.stickers.hideTime", default: false)
 
     // MARK: Messages

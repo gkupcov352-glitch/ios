@@ -16,6 +16,8 @@ import WGProfileExport
 import WGExtras
 import WGRegDate
 import WGSessionBackup
+import WGExteraBadge
+import WGQuickActions
 
 /// Aggregator of the feature modules, called from `AppDelegate` (see FOUNDATION_SPEC §2):
 /// `WGCore.bootstrap` → `WGFeatures.registerAll()` → `WGCore.runGlobalMigrations()` →
@@ -44,5 +46,7 @@ public enum WGFeatures {
         WGRegDateModule.register()
         // «Бэкап аккаунтов» (Swiftgram Pro).
         WGSessionBackupModule.register()
+        WGExteraBadgeModule.register()
+        WGQuickActionsModule.register()
     }
 }

@@ -1,0 +1,1010 @@
+diff --git a/.github/workflows/build-simulator.yml b/.github/workflows/build-simulator.yml
+new file mode 100644
+--- a/.github/workflows/build-simulator.yml
++++ b/.github/workflows/build-simulator.yml
+@@ -0,0 +1,115 @@
++# Builds a simulator app only — no resigned IPA, no signing certificate, no sideloading.
++#
++# Run it in your fork: Actions → "Build for Simulator (no IPA)" → Run workflow.
++# The artifact is a ZIP with Telegram.app, not an .ipa. See docs/BUILD_SIMULATOR.md.
++# Your own TELEGRAM_API_ID / TELEGRAM_API_HASH secrets are recommended; without them the
++# template's public api_id 8 is used and the build logs a warning.
++
++name: Build for Simulator (no IPA)
++
++on:
++  workflow_dispatch:
++    inputs:
++      bundle_id:
++        description: "Bundle ID for the simulator app, e.g. com.yourname.wraithgram.sim"
++        required: true
++        default: "com.wraithgram.mod"
++      runner:
++        description: "Runner label; it must have the Xcode version from versions.json"
++        required: true
++        default: "xcode-27"
++
++permissions:
++  contents: read
++
++jobs:
++  build:
++    runs-on: ${{ inputs.runner }}
++    timeout-minutes: 360
++
++    steps:
++      - uses: actions/checkout@v4
++        with:
++          submodules: recursive
++
++      - name: Select the Xcode from versions.json
++        run: |
++          XCODE_VERSION="$(python3 -c 'import json; print(json.load(open("versions.json"))["xcode"])')"
++          XCODE_PATH="/Applications/Xcode_${XCODE_VERSION}.app"
++          if [ ! -d "$XCODE_PATH" ]; then
++            echo "::error::$XCODE_PATH is not on this runner. Installed: $(echo /Applications/Xcode_*.app)"
++            exit 1
++          fi
++          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
++          if [ -L /Applications/Xcode.app ] || [ ! -e /Applications/Xcode.app ]; then
++            sudo ln -sfn "$XCODE_PATH" /Applications/Xcode.app
++          fi
++          echo "XCODE_PATH=$XCODE_PATH" >> "$GITHUB_ENV"
++          xcodebuild -version
++
++      - name: Free disk space
++        run: |
++          df -h /
++          for xcode in /Applications/Xcode_*.app; do
++            [ "$(cd "$xcode" && pwd -P)" = "$(cd "$XCODE_PATH" && pwd -P)" ] || sudo rm -rf "$xcode"
++          done
++          sudo rm -rf "$HOME/Library/Android" /usr/local/share/dotnet "$HOME/.dotnet" "$HOME/hostedtoolcache" || true
++          df -h /
++
++      - name: Write the simulator configuration
++        env:
++          API_ID: ${{ secrets.TELEGRAM_API_ID }}
++          API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
++          BUNDLE_ID: ${{ inputs.bundle_id }}
++        run: |
++          python3 - <<'PY'
++          import json, os
++          config = json.load(open("build-system/wraithgram-configuration.example.json"))
++          config.pop("_warning", None)
++          if os.environ.get("API_ID") and os.environ.get("API_HASH"):
++              config["api_id"] = os.environ["API_ID"]
++              config["api_hash"] = os.environ["API_HASH"]
++          else:
++              print("::warning::TELEGRAM_API_ID / TELEGRAM_API_HASH secrets are not set: building with Telegram's own api_id 8.")
++          config["bundle_id"] = os.environ["BUNDLE_ID"].strip()
++          json.dump(config, open("build-system/wraithgram-configuration.json", "w"), indent=2)
++          PY
++
++      - name: Build for simulator
++        env:
++          WG_BAZEL_CACHE: ""
++          WG_BUILD_LOG: ${{ runner.temp }}/wg-build.log
++        run: build-system/WGBuild.sh
++
++      - name: Package Telegram.app (not an IPA)
++        run: |
++          set -e
++          if [ -f bazel-bin/Telegram/Telegram.ipa ]; then
++            unzip -q bazel-bin/Telegram/Telegram.ipa -d sim-unpack
++          fi
++          APP_DIR="$(find sim-unpack bazel-bin -type d -name 'Telegram.app' -print -quit 2>/dev/null || true)"
++          if [ -z "$APP_DIR" ]; then
++            echo "::error::Telegram.app was not found after the simulator build"
++            exit 1
++          fi
++          mkdir -p simulator-output
++          cp -R "$APP_DIR" simulator-output/
++          (cd simulator-output && zip -qry "$GITHUB_WORKSPACE/wraithgram-simulator-app.zip" Telegram.app)
++          echo "Packaged: $APP_DIR"
++
++      - name: Upload the simulator app
++        uses: actions/upload-artifact@v4
++        with:
++          name: Wraithgram-simulator-app
++          path: wraithgram-simulator-app.zip
++          retention-days: 7
++          if-no-files-found: error
++
++      - name: Upload the build log
++        if: failure()
++        uses: actions/upload-artifact@v4
++        with:
++          name: build-log-simulator
++          path: ${{ runner.temp }}/wg-build.log
++          retention-days: 3
++          if-no-files-found: ignore
+diff --git a/Wraithgram/Features/ExteraBadge/BUILD b/Wraithgram/Features/ExteraBadge/BUILD
+new file mode 100644
+--- a/Wraithgram/Features/ExteraBadge/BUILD
++++ b/Wraithgram/Features/ExteraBadge/BUILD
+@@ -0,0 +1,29 @@
++load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
++
++# Feature module WGExteraBadge: the real public exteraGram badge catalog in Wraithgram.
++# Never depends on TelegramUI or another WG<Feature> module (FOUNDATION_SPEC §1.1).
++swift_library(
++    name = "WGExteraBadge",
++    module_name = "WGExteraBadge",
++    srcs = glob([
++        "Sources/**/*.swift",
++    ]),
++    copts = [
++        "-warnings-as-errors",
++    ],
++    deps = [
++        "//Wraithgram/WGCore:WGCore",
++        "//Wraithgram/WGHooks:WGHooks",
++        "//Wraithgram/WGSettingsUI:WGSettingsUI",
++        "//submodules/SSignalKit/SwiftSignalKit:SwiftSignalKit",
++        "//submodules/AsyncDisplayKit:AsyncDisplayKit",
++        "//submodules/Postbox:Postbox",
++        "//submodules/TelegramCore:TelegramCore",
++        "//submodules/AccountContext:AccountContext",
++        "//submodules/ChatListUI:ChatListUI",
++        "//submodules/TelegramPresentationData:TelegramPresentationData",
++    ],
++    visibility = [
++        "//visibility:public",
++    ],
++)
+diff --git a/Wraithgram/Features/ExteraBadge/Sources/API/WGExteraBadgeAPI.swift b/Wraithgram/Features/ExteraBadge/Sources/API/WGExteraBadgeAPI.swift
+new file mode 100644
+--- a/Wraithgram/Features/ExteraBadge/Sources/API/WGExteraBadgeAPI.swift
++++ b/Wraithgram/Features/ExteraBadge/Sources/API/WGExteraBadgeAPI.swift
+@@ -0,0 +1,53 @@
++import Foundation
++import SwiftSignalKit
++import WGCore
++
++/// The real public exteraGram badge feed, exactly the endpoint the Android client uses
++/// (`ApiService.getAllProfiles`): `GET https://api.exteragram.app/api/v1/profiles`.
++///
++/// The whole catalog is fetched (an anonymous list); no Telegram user id is put into the URL.
++/// ETag is reused through `WGNetworkRequest.etag`, so a 304 costs almost nothing. No extra headers,
++/// no token, no fake badge: if the server does not list a user, the app shows nothing.
++enum WGExteraBadgeAPI {
++    static let baseURL = "https://api.exteragram.app/api/v1/"
++    static let requestTimeout: Double = 15.0
++    static let maxResponseBytes = 2 * 1024 * 1024
++
++    enum Result {
++        case updated(WGExteraBadgeSnapshot)
++        case notModified
++        case failed
++    }
++
++    static var profilesURL: URL? {
++        return URL(string: baseURL + "profiles")
++    }
++
++    static func fetch(etag: String?) -> Signal<Result, NoError> {
++        guard let url = WGExteraBadgeAPI.profilesURL else {
++            return .single(.failed)
++        }
++        let request = WGNetworkRequest(url: url, etag: etag, maxBytes: WGExteraBadgeAPI.maxResponseBytes)
++        return WGNetwork.shared.fetch(request)
++        |> map { response -> Result in
++            if response.notModified {
++                return .notModified
++            }
++            guard let data = response.data else {
++                return .failed
++            }
++            do {
++                let decoder = JSONDecoder()
++                let profiles = try decoder.decode([WGExteraBadgeProfile].self, from: data)
++                let snapshot = WGExteraBadgeSnapshot(profiles: profiles, etag: response.etag ?? etag, fetchedAt: WGExteraBadgeStore.now())
++                return .updated(snapshot)
++            } catch {
++                return .failed
++            }
++        }
++        |> `catch` { _ -> Signal<Result, NoError> in
++            return .single(.failed)
++        }
++        |> timeout(WGExteraBadgeAPI.requestTimeout, queue: Queue.concurrentDefaultQueue(), alternate: .single(.failed))
++    }
++}
+diff --git a/Wraithgram/Features/ExteraBadge/Sources/ChatList/WGExteraBadgeChatList.swift b/Wraithgram/Features/ExteraBadge/Sources/ChatList/WGExteraBadgeChatList.swift
+new file mode 100644
+--- a/Wraithgram/Features/ExteraBadge/Sources/ChatList/WGExteraBadgeChatList.swift
++++ b/Wraithgram/Features/ExteraBadge/Sources/ChatList/WGExteraBadgeChatList.swift
+@@ -0,0 +1,66 @@
++import Foundation
++import UIKit
++import SwiftSignalKit
++import Postbox
++import TelegramCore
++import AccountContext
++import ChatListUI
++import WGCore
++import WGHooks
++
++/// Compact exteraGram badge next to the title of a user's chat row.
++///
++/// The catalog is public and anonymous; a row layout only reads the local cache. When the cache
++/// changes, `accessoryPeers` re-lays out the listed peers once (not on a timer).
++enum WGExteraBadgeChatList {
++    private static let pillTag = 9932
++
++    static func register() {
++        WGChatListHooks.rowDidLayout.register({ layout in
++            WGExteraBadgeChatList.updateRow(layout)
++        })
++
++        WGChatListHooks.accessoryPeers.register({ _ in
++            return combineLatest(WGExteraBadgeSettings.enabled.signal, WGExteraBadgeSettings.cache.signal)
++            |> map { enabled, snapshot -> Set<EnginePeer.Id> in
++                guard enabled else {
++                    return Set()
++                }
++                return Set(snapshot.profiles.compactMap { profile in
++                    guard !profile.deleted, profile.displayText != nil else {
++                        return nil
++                    }
++                    return EnginePeer.Id(namespace: Namespaces.Peer.CloudUser, id: EnginePeer.Id.Id._internalFromInt64Value(profile.id))
++                })
++            }
++            |> distinctUntilChanged
++        })
++    }
++
++    private static func updateRow(_ layout: WGChatListRowLayout) {
++        guard WGExteraBadgeSettings.enabled.value, WGExteraBadgeSettings.showInChatList.value else {
++            return
++        }
++        guard let peer = layout.peer, case let .user(user) = peer else {
++            return
++        }
++        WGExteraBadgeStore.shared.refreshIfNeeded()
++        guard let profile = WGExteraBadgeStore.shared.badge(for: user.id.id._internalGetInt64Value()), let text = profile.displayText else {
++            return
++        }
++
++        let container = layout.node.view
++        let pill: WGExteraBadgePillView
++        if let existing = container.viewWithTag(pillTag) as? WGExteraBadgePillView {
++            pill = existing
++        } else {
++            pill = WGExteraBadgePillView(frame: .zero)
++            pill.tag = pillTag
++            pill.autoresizingMask = [.flexibleLeftMargin, .flexibleTopMargin, .flexibleBottomMargin]
++            container.addSubview(pill)
++        }
++        pill.update(text: text, color: profile.isDeveloper ? UIColor.systemPurple : UIColor.systemBlue)
++        let size = pill.sizeThatFits(CGSize(width: 120, height: 15))
++        pill.frame = CGRect(x: layout.titleFrame.maxX + 4, y: layout.titleFrame.midY - 8.0, width: size.width, height: 15.0)
++    }
++}
+diff --git a/Wraithgram/Features/ExteraBadge/Sources/Menu/WGExteraBadgeMenu.swift b/Wraithgram/Features/ExteraBadge/Sources/Menu/WGExteraBadgeMenu.swift
+new file mode 100644
+--- a/Wraithgram/Features/ExteraBadge/Sources/Menu/WGExteraBadgeMenu.swift
++++ b/Wraithgram/Features/ExteraBadge/Sources/Menu/WGExteraBadgeMenu.swift
+@@ -0,0 +1,52 @@
++import Foundation
++import WGCore
++import WGSettingsUI
++
++/// Rows in the existing «Профиль и Настройки › Профиль» section. No new tab is needed: the badge
++/// is a small profile/chat-list decoration, not a separate settings world.
++enum WGExteraBadgeMenu {
++    static func register() {
++        WGMenuRegistry.register(WGMenuRow(
++            id: "exteraBadge.enabled",
++            section: .swiftgramProfilesInfo,
++            order: 400,
++            title: { "Бейджи exteraGram" },
++            subtitle: { "Статусы SUPPORTER / DEVELOPER из публичного API exteraGram" },
++            icon: .system("rosette"),
++            kind: .toggle(.global(WGExteraBadgeSettings.enabled))
++        ))
++        WGMenuRegistry.register(WGMenuRow(
++            id: "exteraBadge.inProfile",
++            section: .swiftgramProfilesInfo,
++            order: 410,
++            title: { "Бейдж в профиле" },
++            kind: .toggle(.global(WGExteraBadgeSettings.showInProfile)),
++            isVisible: { _ in WGExteraBadgeSettings.enabled.value }
++        ))
++        WGMenuRegistry.register(WGMenuRow(
++            id: "exteraBadge.inChatList",
++            section: .swiftgramProfilesInfo,
++            order: 420,
++            title: { "Бейдж в списке чатов" },
++            kind: .toggle(.global(WGExteraBadgeSettings.showInChatList)),
++            isVisible: { _ in WGExteraBadgeSettings.enabled.value }
++        ))
++        WGMenuRegistry.register(WGMenuRow(
++            id: "exteraBadge.refresh",
++            section: .swiftgramProfilesInfo,
++            order: 430,
++            title: { "Обновить список бейджей" },
++            subtitle: { "Запрос к api.exteragram.app (только публичный список)" },
++            icon: .system("arrow.triangle.2.circlepath"),
++            kind: .action({ context in
++                WGExteraBadgeStore.shared.refreshIfNeeded(force: true)
++                context.presentToast("Запрос к exteraGram отправлен")
++            }),
++            label: { _ in
++                let count = WGExteraBadgeStore.shared.snapshot.profiles.count
++                return count > 0 ? "\(count)" : "—"
++            },
++            isVisible: { _ in WGExteraBadgeSettings.enabled.value }
++        ))
++    }
++}
+diff --git a/Wraithgram/Features/ExteraBadge/Sources/Model/WGExteraBadgeModel.swift b/Wraithgram/Features/ExteraBadge/Sources/Model/WGExteraBadgeModel.swift
+new file mode 100644
+--- a/Wraithgram/Features/ExteraBadge/Sources/Model/WGExteraBadgeModel.swift
++++ b/Wraithgram/Features/ExteraBadge/Sources/Model/WGExteraBadgeModel.swift
+@@ -0,0 +1,120 @@
++import Foundation
++
++/// DTO of `GET https://api.exteragram.app/api/v1/profiles`.
++///
++/// Mirrors exteraGram's `ApiProfile` / `Badge` (`BadgesController`):
++/// `id`, `type`, `status` (`DEFAULT | DEVELOPER | SUPPORTER`), `badge {documentId, text}`,
++/// `number`, `deleted`, `canChangeBadge`. Unknown fields are ignored so a server addition does
++/// not break the app.
++struct WGExteraBadgeDocument: Codable, Equatable, WGSettingValue {
++    let documentId: Int64?
++    let text: String?
++
++    private enum CodingKeys: String, CodingKey {
++        case documentId
++        case text
++    }
++
++    init(documentId: Int64?, text: String?) {
++        self.documentId = documentId
++        self.text = text
++    }
++
++    init(from decoder: Decoder) throws {
++        let container = try decoder.container(keyedBy: CodingKeys.self)
++        self.documentId = try container.decodeIfPresent(Int64.self, forKey: .documentId)
++        self.text = try container.decodeIfPresent(String.self, forKey: .text)
++    }
++}
++
++/// `id` is sent as a number by the Android client; accept a decimal string as well.
++private struct WGExteraFlexibleInt64: Decodable {
++    let value: Int64
++
++    init(from decoder: Decoder) throws {
++        let container = try decoder.singleValueContainer()
++        if let number = try? container.decode(Int64.self) {
++            self.value = number
++        } else if let string = try? container.decode(String.self), let number = Int64(string) {
++            self.value = number
++        } else {
++            throw DecodingError.typeMismatch(Int64.self, DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected an integer or decimal string"))
++        }
++    }
++}
++
++struct WGExteraBadgeProfile: Codable, Equatable, WGSettingValue {
++    let id: Int64
++    let type: String?
++    let status: String?
++    let badge: WGExteraBadgeDocument?
++    let number: Int?
++    let deleted: Bool
++    let canChangeBadge: Bool
++
++    private enum CodingKeys: String, CodingKey {
++        case id
++        case type
++        case status
++        case badge
++        case number
++        case deleted
++        case canChangeBadge
++    }
++
++    init(from decoder: Decoder) throws {
++        let container = try decoder.container(keyedBy: CodingKeys.self)
++        // The Android client uses a Long id; accept a decimal string too, so a server-side
++        // serialization change cannot silently hide every badge.
++        guard let id = try container.decodeIfPresent(WGExteraFlexibleInt64.self, forKey: .id) else {
++            throw DecodingError.keyNotFound(CodingKeys.id, DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Missing profile id"))
++        }
++        self.id = id.value
++        self.type = try container.decodeIfPresent(String.self, forKey: .type)
++        self.status = try container.decodeIfPresent(String.self, forKey: .status)
++        self.badge = try container.decodeIfPresent(WGExteraBadgeDocument.self, forKey: .badge)
++        self.number = try container.decodeIfPresent(Int.self, forKey: .number)
++        self.deleted = try container.decodeIfPresent(Bool.self, forKey: .deleted) ?? false
++        self.canChangeBadge = try container.decodeIfPresent(Bool.self, forKey: .canChangeBadge) ?? false
++    }
++
++    var isSupporter: Bool {
++        return self.status == "SUPPORTER"
++    }
++
++    var isDeveloper: Bool {
++        return self.status == "DEVELOPER"
++    }
++
++    /// The text to draw in the pill. Never invent a title: prefer the server text, then the status.
++    var displayText: String? {
++        if let text = self.badge?.text, !text.isEmpty {
++            return text
++        }
++        switch self.status {
++        case "SUPPORTER":
++            return "SUPPORTER"
++        case "DEVELOPER":
++            return "DEVELOPER"
++        default:
++            return nil
++        }
++    }
++}
++
++/// The cached answer of the whole public catalog (no user id leaves the device in a request).
++struct WGExteraBadgeSnapshot: Codable, Equatable, WGSettingValue {
++    let profiles: [WGExteraBadgeProfile]
++    let etag: String?
++    let fetchedAt: Int32
++
++    init(profiles: [WGExteraBadgeProfile], etag: String?, fetchedAt: Int32) {
++        self.profiles = profiles
++        self.etag = etag
++        self.fetchedAt = fetchedAt
++    }
++
++    func profile(for userId: Int64) -> WGExteraBadgeProfile? {
++        return self.profiles.first(where: { $0.id == userId && !$0.deleted })
++    }
++}
+diff --git a/Wraithgram/Features/ExteraBadge/Sources/Profile/WGExteraBadgeProfile.swift b/Wraithgram/Features/ExteraBadge/Sources/Profile/WGExteraBadgeProfile.swift
+new file mode 100644
+--- a/Wraithgram/Features/ExteraBadge/Sources/Profile/WGExteraBadgeProfile.swift
++++ b/Wraithgram/Features/ExteraBadge/Sources/Profile/WGExteraBadgeProfile.swift
+@@ -0,0 +1,71 @@
++import Foundation
++import UIKit
++import AsyncDisplayKit
++import TelegramCore
++import WGCore
++import WGHooks
++
++/// Badge in a user's profile: an info row plus a compact pill beside the name.
++///
++/// The status always comes from the public exteraGram catalog. Opening a profile may start a
++/// rate-limited refresh; the next layout draws the answer. Nothing is granted locally.
++enum WGExteraBadgeProfile {
++    private static let pillTag = 9931
++
++    static func register() {
++        WGPeerInfoHooks.infoRows.register({ info in
++            return WGExteraBadgeProfile.rows(info)
++        }, order: 120)
++
++        WGPeerInfoHooks.headerDidLayout.register({ header in
++            WGExteraBadgeProfile.updateHeader(header)
++        }, order: 120)
++    }
++
++    private static func rows(_ info: WGPeerInfoContext) -> [WGPeerInfoRow] {
++        guard WGExteraBadgeSettings.enabled.value, WGExteraBadgeSettings.showInProfile.value, !info.isSettings else {
++            return []
++        }
++        guard case let .user(user) = info.peer else {
++            return []
++        }
++        WGExteraBadgeStore.shared.refreshIfNeeded()
++        guard let profile = WGExteraBadgeStore.shared.badge(for: user.id.id._internalGetInt64Value()) else {
++            return []
++        }
++        guard let text = profile.displayText else {
++            return []
++        }
++        let label = profile.isDeveloper ? "Разработчик exteraGram" : "Саппортер exteraGram"
++        return [WGPeerInfoRow(id: "exteraBadge.profile", label: label, text: text)]
++    }
++
++    private static func updateHeader(_ header: WGPeerInfoHeader) {
++        guard WGExteraBadgeSettings.enabled.value, WGExteraBadgeSettings.showInProfile.value, !header.isSettings, let peer = header.peer else {
++            return
++        }
++        guard case let .user(user) = peer else {
++            return
++        }
++        WGExteraBadgeStore.shared.refreshIfNeeded()
++        guard let profile = WGExteraBadgeStore.shared.badge(for: user.id.id._internalGetInt64Value()), let text = profile.displayText else {
++            return
++        }
++
++        // The header exposes the name's own views; fall back to the header itself.
++        let container = header.titleStateViews.last ?? header.node.view
++        let pill: WGExteraBadgePillView
++        if let existing = container.viewWithTag(pillTag) as? WGExteraBadgePillView {
++            pill = existing
++        } else {
++            pill = WGExteraBadgePillView(frame: CGRect(x: container.bounds.width + 4, y: 0, width: 0, height: 17))
++            pill.tag = pillTag
++            pill.autoresizingMask = [.flexibleLeftMargin, .flexibleTopMargin, .flexibleBottomMargin]
++            container.addSubview(pill)
++        }
++        let color = profile.isDeveloper ? UIColor.systemPurple : UIColor.systemBlue
++        pill.update(text: text, color: color)
++        let size = pill.sizeThatFits(CGSize(width: 160, height: 17))
++        pill.frame.size = CGSize(width: size.width, height: 17)
++    }
++}
+diff --git a/Wraithgram/Features/ExteraBadge/Sources/Settings/WGExteraBadgeSettings.swift b/Wraithgram/Features/ExteraBadge/Sources/Settings/WGExteraBadgeSettings.swift
+new file mode 100644
+--- a/Wraithgram/Features/ExteraBadge/Sources/Settings/WGExteraBadgeSettings.swift
++++ b/Wraithgram/Features/ExteraBadge/Sources/Settings/WGExteraBadgeSettings.swift
+@@ -0,0 +1,23 @@
++import Foundation
++import WGCore
++
++enum WGExteraBadgeSettings {
++    /// Master switch: off means no requests at all and no badge drawn.
++    static let enabled = WGSetting<Bool>("exteraBadge.enabled", default: true)
++    /// Show the server's badge in the profile's info section.
++    static let showInProfile = WGSetting<Bool>("exteraBadge.showInProfile", default: true)
++    /// Show a compact pill next to the chat title in the chat list.
++    static let showInChatList = WGSetting<Bool>("exteraBadge.showInChatList", default: true)
++    /// Seconds between two full catalog requests (exteraGram uses ~10 minutes).
++    static let refreshInterval = WGSetting<Int>("exteraBadge.refreshInterval", default: 600)
++    /// Last good answer. Not exported: a cache, not a user preference.
++    static let cache = WGSetting<WGExteraBadgeSnapshot>("exteraBadge.cache", default: WGExteraBadgeSnapshot(profiles: [], etag: nil, fetchedAt: 0), flags: [.noExport])
++
++    static func declare() {
++        let _ = WGExteraBadgeSettings.enabled
++        let _ = WGExteraBadgeSettings.showInProfile
++        let _ = WGExteraBadgeSettings.showInChatList
++        let _ = WGExteraBadgeSettings.refreshInterval
++        let _ = WGExteraBadgeSettings.cache
++    }
++}
+diff --git a/Wraithgram/Features/ExteraBadge/Sources/Store/WGExteraBadgeStore.swift b/Wraithgram/Features/ExteraBadge/Sources/Store/WGExteraBadgeStore.swift
+new file mode 100644
+--- a/Wraithgram/Features/ExteraBadge/Sources/Store/WGExteraBadgeStore.swift
++++ b/Wraithgram/Features/ExteraBadge/Sources/Store/WGExteraBadgeStore.swift
+@@ -0,0 +1,70 @@
++import Foundation
++import SwiftSignalKit
++import WGCore
++
++/// Cache and refresh policy of the public exteraGram catalog.
++///
++/// Main thread. Refreshes at most once per `refreshInterval` (10 minutes — the same order as
++/// exteraGram's `BadgesController`), reuses the ETag, and keeps the last good snapshot on any
++/// failure. The cache is `.noExport`: it is public data, not a user setting.
++final class WGExteraBadgeStore {
++    static let shared = WGExteraBadgeStore()
++
++    private var inFlight = false
++    private var lastRefresh: Int32 = 0
++    private let disposables = DisposableSet()
++
++    private init() {
++    }
++
++    static func now() -> Int32 {
++        return Int32(clamping: Int(Date().timeIntervalSince1970))
++    }
++
++    var snapshot: WGExteraBadgeSnapshot {
++        return WGExteraBadgeSettings.cache.value
++    }
++
++    func badge(for userId: Int64) -> WGExteraBadgeProfile? {
++        guard WGExteraBadgeSettings.enabled.value else {
++            return nil
++        }
++        return self.snapshot.profile(for: userId)
++    }
++
++    func badgeText(for userId: Int64) -> String? {
++        return self.badge(for: userId)?.displayText
++    }
++
++    /// Called when a profile opens and from the settings screen. `force` is used by the
++    /// «Обновить» row.
++    func refreshIfNeeded(force: Bool = false) {
++        assert(Thread.isMainThread)
++        guard WGExteraBadgeSettings.enabled.value, !self.inFlight else {
++            return
++        }
++        let now = WGExteraBadgeStore.now()
++        let last = max(self.lastRefresh, self.snapshot.fetchedAt)
++        if !force, last > 0, now - last < Int32(WGExteraBadgeSettings.refreshInterval) {
++            return
++        }
++        self.inFlight = true
++        let etag = self.snapshot.etag
++        self.disposables.add((WGExteraBadgeAPI.fetch(etag: etag)
++        |> deliverOnMainQueue).start(next: { [weak self] result in
++            guard let self else {
++                return
++            }
++            self.inFlight = false
++            self.lastRefresh = WGExteraBadgeStore.now()
++            switch result {
++            case let .updated(snapshot):
++                WGExteraBadgeSettings.cache.set(snapshot)
++            case .notModified:
++                break
++            case .failed:
++                break
++            }
++        }))
++    }
++}
+diff --git a/Wraithgram/Features/ExteraBadge/Sources/UI/WGExteraBadgeUI.swift b/Wraithgram/Features/ExteraBadge/Sources/UI/WGExteraBadgeUI.swift
+new file mode 100644
+--- a/Wraithgram/Features/ExteraBadge/Sources/UI/WGExteraBadgeUI.swift
++++ b/Wraithgram/Features/ExteraBadge/Sources/UI/WGExteraBadgeUI.swift
+@@ -0,0 +1,51 @@
++import Foundation
++import UIKit
++
++/// A small pill drawn next to a name (chat list / profile header).
++///
++/// The real exteraGram badge is a remote document (`badge.documentId`). Resolving an arbitrary
++/// Telegram document id to a local UIImage requires a Telegram file-reference context, which a
++/// feature module does not have in the header layout path. To keep the patch safe and honest, the
++/// pill shows the server's own `badge.text` (or a localized status name); no badge artwork is
++/// faked locally. Swap this view for an AsyncDisplayKit image node if you later add a document
++/// resolver in Wraithgram's own layer.
++final class WGExteraBadgePillView: UIView {
++    private let label = UILabel()
++
++    override init(frame: CGRect) {
++        super.init(frame: frame)
++        self.isUserInteractionEnabled = false
++        self.layer.cornerRadius = 5.0
++        self.layer.masksToBounds = true
++        self.label.font = .systemFont(ofSize: 11, weight: .semibold)
++        self.label.textAlignment = .center
++        self.label.textColor = .white
++        self.addSubview(self.label)
++        self.label.translatesAutoresizingMaskIntoConstraints = false
++        NSLayoutConstraint.activate([
++            self.label.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 5),
++            self.label.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -5),
++            self.label.topAnchor.constraint(equalTo: self.topAnchor, constant: 1),
++            self.label.bottomAnchor.constraint(equalTo: self.bottomAnchor, constant: -1)
++        ])
++    }
++
++    required init?(coder: NSCoder) {
++        fatalError("init(coder:) has not been implemented")
++    }
++
++    func update(text: String?, color: UIColor) {
++        guard let text, !text.isEmpty else {
++            self.isHidden = true
++            return
++        }
++        self.isHidden = false
++        self.backgroundColor = color.withAlphaComponent(0.85)
++        self.label.text = text
++    }
++
++    override func sizeThatFits(_ size: CGSize) -> CGSize {
++        let textSize = self.label.sizeThatFits(CGSize(width: size.width - 10, height: size.height - 2))
++        return CGSize(width: ceil(textSize.width) + 10, height: ceil(textSize.height) + 2)
++    }
++}
+diff --git a/Wraithgram/Features/ExteraBadge/Sources/WGExteraBadgeModule.swift b/Wraithgram/Features/ExteraBadge/Sources/WGExteraBadgeModule.swift
+new file mode 100644
+--- a/Wraithgram/Features/ExteraBadge/Sources/WGExteraBadgeModule.swift
++++ b/Wraithgram/Features/ExteraBadge/Sources/WGExteraBadgeModule.swift
+@@ -0,0 +1,17 @@
++import Foundation
++
++/// Entry point of WGExteraBadge — the real public exteraGram badge feed in Wraithgram.
++///
++/// Based on the API contract of exteraGram (https://github.com/exteraSquad/exteraGram,
++/// `api.exteragram.app/api/v1/profiles`). No badge is granted locally: the app only displays
++/// what the exteraGram server says. Registration happens from `WGFeatures.registerAll()`, before
++/// `WGHookRegistry.freeze()`.
++public enum WGExteraBadgeModule {
++    public static func register() {
++        WGExteraBadgeSettings.declare()
++        WGExteraBadgeMenu.register()
++        WGExteraBadgeProfile.register()
++        WGExteraBadgeChatList.register()
++        _ = WGExteraBadgeStore.shared
++    }
++}
+diff --git a/Wraithgram/Features/QuickActions/BUILD b/Wraithgram/Features/QuickActions/BUILD
+new file mode 100644
+--- a/Wraithgram/Features/QuickActions/BUILD
++++ b/Wraithgram/Features/QuickActions/BUILD
+@@ -0,0 +1,32 @@
++load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
++
++# Feature module WGQuickActions: two small Reza-inspired conveniences implemented with the
++# existing WGHooks surface:
++#   - double tap on a message → repeat it to Saved Messages;
++#   - show the message id and the timestamp with seconds in the status line.
++# No upstream/submodule edits. Never depends on TelegramUI or another WG<Feature> module.
++swift_library(
++    name = "WGQuickActions",
++    module_name = "WGQuickActions",
++    srcs = glob([
++        "Sources/**/*.swift",
++    ]),
++    copts = [
++        "-warnings-as-errors",
++    ],
++    deps = [
++        "//Wraithgram/WGCore:WGCore",
++        "//Wraithgram/WGHooks:WGHooks",
++        "//Wraithgram/WGSettingsUI:WGSettingsUI",
++        "//Wraithgram/Features/Shared:WGFeaturesShared",
++        "//submodules/SSignalKit/SwiftSignalKit:SwiftSignalKit",
++        "//submodules/Postbox:Postbox",
++        "//submodules/TelegramCore:TelegramCore",
++        "//submodules/AccountContext:AccountContext",
++        "//submodules/TelegramPresentationData:TelegramPresentationData",
++        "//submodules/UndoUI:UndoUI",
++    ],
++    visibility = [
++        "//visibility:public",
++    ],
++)
+diff --git a/Wraithgram/Features/QuickActions/Sources/Decorations/WGQuickActionsDecorations.swift b/Wraithgram/Features/QuickActions/Sources/Decorations/WGQuickActionsDecorations.swift
+new file mode 100644
+--- a/Wraithgram/Features/QuickActions/Sources/Decorations/WGQuickActionsDecorations.swift
++++ b/Wraithgram/Features/QuickActions/Sources/Decorations/WGQuickActionsDecorations.swift
+@@ -0,0 +1,36 @@
++import Foundation
++import Postbox
++import TelegramCore
++import AccountContext
++import WGCore
++import WGHooks
++
++enum WGQuickActionsDecorations {
++    static func register() {
++        // Late handler: append to whatever AntiDelete / Messages / Appearance already put into the
++        // status line instead of replacing their marks.
++        WGMessageDecorationHooks.decorations.register({ decoration, context in
++            guard WGQuickActionsSettings.showMessageIdAndSeconds.value else {
++                return
++            }
++            let marker = WGQuickActionsDecorations.marker(for: context.message)
++            if let current = decoration.statusPrefix {
++                decoration.statusPrefix = current + "· " + marker
++            } else {
++                decoration.statusPrefix = marker
++            }
++        }, order: 950)
++    }
++
++    private static func marker(for message: Message) -> String {
++        let date = Date(timeIntervalSince1970: Double(message.timestamp))
++        let components = Calendar(identifier: .gregorian).dateComponents([.hour, .minute, .second], from: date)
++        let time = String(
++            format: "%02d:%02d:%02d",
++            components.hour ?? 0,
++            components.minute ?? 0,
++            components.second ?? 0
++        )
++        return "#\(message.id.id) \(time) "
++    }
++}
+diff --git a/Wraithgram/Features/QuickActions/Sources/Gestures/WGQuickActionsGestures.swift b/Wraithgram/Features/QuickActions/Sources/Gestures/WGQuickActionsGestures.swift
+new file mode 100644
+--- a/Wraithgram/Features/QuickActions/Sources/Gestures/WGQuickActionsGestures.swift
++++ b/Wraithgram/Features/QuickActions/Sources/Gestures/WGQuickActionsGestures.swift
+@@ -0,0 +1,53 @@
++import Foundation
++import UIKit
++import SwiftSignalKit
++import Postbox
++import TelegramCore
++import AccountContext
++import TelegramPresentationData
++import UndoUI
++import WGCore
++import WGHooks
++import WGFeaturesShared
++
++enum WGQuickActionsGestures {
++    static func register() {
++        // WGMessages' «double tap → edit» is registered at order 0 and returns true only when it
++        // actually handled the tap. Our handler runs after it (order 50), so enabling both is safe.
++        WGMessageGestureHooks.tap.register({ request in
++            guard request.tapCount == 2, WGQuickActionsSettings.doubleTapRepeatToSaved.value else {
++                return false
++            }
++            // Saved Messages → Saved Messages would only create duplicates.
++            guard request.message.id.peerId != request.context.account.peerId else {
++                return false
++            }
++            WGQuickActionsGestures.repeatToSaved(request.message, context: request.context)
++            return true
++        }, order: 50)
++    }
++
++    /// Forwards one message to the account's Saved Messages using the same pipeline as the existing
++    /// «В Избранное» menu item (including copy fallbacks for protected media).
++    private static func repeatToSaved(_ message: Message, context: AccountContext) {
++        WGForwardSend.send(
++            account: context.account,
++            messages: [message],
++            to: [WGForwardSend.Target(peerId: context.account.peerId, threadId: nil)],
++            hideNames: false,
++            hideCaptions: false,
++            completion: { result in
++                let text = result.messages.isEmpty
++                    ? "Не удалось добавить сообщение в Избранное"
++                    : "Сообщение добавлено в Избранное"
++                let presentationData = context.sharedContext.currentPresentationData.with { $0 }
++                context.sharedContext.mainWindow?.present(UndoOverlayController(
++                    presentationData: presentationData,
++                    content: .info(title: nil, text: text, timeout: nil, customUndoText: nil),
++                    elevatedLayout: false,
++                    action: { _ in false }
++                ), on: .root)
++            }
++        )
++    }
++}
+diff --git a/Wraithgram/Features/QuickActions/Sources/Menu/WGQuickActionsMenu.swift b/Wraithgram/Features/QuickActions/Sources/Menu/WGQuickActionsMenu.swift
+new file mode 100644
+--- a/Wraithgram/Features/QuickActions/Sources/Menu/WGQuickActionsMenu.swift
++++ b/Wraithgram/Features/QuickActions/Sources/Menu/WGQuickActionsMenu.swift
+@@ -0,0 +1,28 @@
++import Foundation
++import WGCore
++import WGSettingsUI
++
++/// Two rows in the existing chat-actions section. No new settings tab: both switches sit next to
++/// Wraithgram's own «двойной тап — изменить».
++enum WGQuickActionsMenu {
++    static func register() {
++        WGMenuRegistry.register(WGMenuRow(
++            id: "quickActions.doubleTapRepeatToSaved",
++            section: .swiftgramChatActions,
++            order: 200,
++            title: { "Двойной тап — повтор в Избранное" },
++            subtitle: { "Как двойной тап — репост в Reza; работает после «двойной тап — изменить»" },
++            icon: .system("arrow.right"),
++            kind: .toggle(.global(WGQuickActionsSettings.doubleTapRepeatToSaved))
++        ))
++        WGMenuRegistry.register(WGMenuRow(
++            id: "quickActions.showMessageIdAndSeconds",
++            section: .swiftgramChatActions,
++            order: 300,
++            title: { "ID и секунды сообщения" },
++            subtitle: { "В строке времени: #123 12:34:56 (идея из Reza)" },
++            icon: .system("clock"),
++            kind: .toggle(.global(WGQuickActionsSettings.showMessageIdAndSeconds))
++        ))
++    }
++}
+diff --git a/Wraithgram/Features/QuickActions/Sources/Settings/WGQuickActionsSettings.swift b/Wraithgram/Features/QuickActions/Sources/Settings/WGQuickActionsSettings.swift
+new file mode 100644
+--- a/Wraithgram/Features/QuickActions/Sources/Settings/WGQuickActionsSettings.swift
++++ b/Wraithgram/Features/QuickActions/Sources/Settings/WGQuickActionsSettings.swift
+@@ -0,0 +1,15 @@
++import Foundation
++import WGCore
++
++enum WGQuickActionsSettings {
++    /// Double tap repeats the message into Saved Messages instead of the quick reaction.
++    /// Wraithgram's own «double tap → edit» (order 0) keeps priority when both are enabled.
++    static let doubleTapRepeatToSaved = WGSetting<Bool>("quickActions.doubleTapRepeatToSaved", default: false)
++    /// Append `#<id> <HH:mm:ss>` before the time in every message's status line.
++    static let showMessageIdAndSeconds = WGSetting<Bool>("quickActions.showMessageIdAndSeconds", default: false)
++
++    static func declare() {
++        let _ = WGQuickActionsSettings.doubleTapRepeatToSaved
++        let _ = WGQuickActionsSettings.showMessageIdAndSeconds
++    }
++}
+diff --git a/Wraithgram/Features/QuickActions/Sources/WGQuickActionsModule.swift b/Wraithgram/Features/QuickActions/Sources/WGQuickActionsModule.swift
+new file mode 100644
+--- a/Wraithgram/Features/QuickActions/Sources/WGQuickActionsModule.swift
++++ b/Wraithgram/Features/QuickActions/Sources/WGQuickActionsModule.swift
+@@ -0,0 +1,16 @@
++import Foundation
++
++/// Entry point of WGQuickActions.
++///
++/// Ideas come from other iOS mods (Reza/Regram-ios: double-tap actions and message ids with
++/// seconds). The implementation is original and uses only Wraithgram's public WGHooks surface;
++/// no code from those projects is copied and no submodule is edited. Registration happens from
++/// `WGFeatures.registerAll()`, before `WGHookRegistry.freeze()`.
++public enum WGQuickActionsModule {
++    public static func register() {
++        WGQuickActionsSettings.declare()
++        WGQuickActionsMenu.register()
++        WGQuickActionsGestures.register()
++        WGQuickActionsDecorations.register()
++    }
++}
+diff --git a/Wraithgram/Features/Appearance/Settings/Sources/WGAppearanceSettings.swift b/Wraithgram/Features/Appearance/Settings/Sources/WGAppearanceSettings.swift
+--- a/Wraithgram/Features/Appearance/Settings/Sources/WGAppearanceSettings.swift
++++ b/Wraithgram/Features/Appearance/Settings/Sources/WGAppearanceSettings.swift
+@@ -21,8 +21,8 @@
+     // MARK: Bubbles
+ 
+     public static let bubbleEditor = WGSetting<Bool>("appearance.bubbles.editor", default: false)
+-    public static let bubbleIncomingRadius = WGSetting<Double>("appearance.bubbles.incomingRadius", default: 16.0)
+-    public static let bubbleOutgoingRadius = WGSetting<Double>("appearance.bubbles.outgoingRadius", default: 16.0)
++    public static let bubbleIncomingRadius = WGSetting<Double>("appearance.bubbles.incomingRadius", default: 18.0)
++    public static let bubbleOutgoingRadius = WGSetting<Double>("appearance.bubbles.outgoingRadius", default: 18.0)
+     /// Horizontal text inset inside a bubble, pt.
+     public static let bubblePadding = WGSetting<Double>("appearance.bubbles.padding", default: 11.0)
+     /// Share of the upstream maximum bubble width, %.
+@@ -41,7 +41,7 @@
+     // MARK: Stickers
+ 
+     /// %, 50…200 (bigger than 100 since 2026-10-27; a big sticker still fits the chat's width).
+-    public static let stickerSize = WGSetting<Double>("appearance.stickers.size", default: 100.0)
++    public static let stickerSize = WGSetting<Double>("appearance.stickers.size", default: 110.0)
+     public static let stickerHideTime = WGSetting<Bool>("appearance.stickers.hideTime", default: false)
+ 
+     // MARK: Messages
+diff --git a/Wraithgram/Features/BUILD b/Wraithgram/Features/BUILD
+--- a/Wraithgram/Features/BUILD
++++ b/Wraithgram/Features/BUILD
+@@ -31,6 +31,8 @@
+         # W7-RD2: «Дата регистрации»
+         "//Wraithgram/Features/RegDate:WGRegDate",
+         "//Wraithgram/Features/SessionBackup:WGSessionBackup",
++        "//Wraithgram/Features/ExteraBadge:WGExteraBadge",
++        "//Wraithgram/Features/QuickActions:WGQuickActions",
+     ],
+     visibility = [
+         "//visibility:public",
+diff --git a/Wraithgram/Features/Sources/WGFeatures.swift b/Wraithgram/Features/Sources/WGFeatures.swift
+--- a/Wraithgram/Features/Sources/WGFeatures.swift
++++ b/Wraithgram/Features/Sources/WGFeatures.swift
+@@ -16,6 +16,8 @@
+ import WGExtras
+ import WGRegDate
+ import WGSessionBackup
++import WGExteraBadge
++import WGQuickActions
+ 
+ /// Aggregator of the feature modules, called from `AppDelegate` (see FOUNDATION_SPEC §2):
+ /// `WGCore.bootstrap` → `WGFeatures.registerAll()` → `WGCore.runGlobalMigrations()` →
+@@ -44,5 +46,7 @@
+         WGRegDateModule.register()
+         // «Бэкап аккаунтов» (Swiftgram Pro).
+         WGSessionBackupModule.register()
++        WGExteraBadgeModule.register()
++        WGQuickActionsModule.register()
+     }
+ }
+diff --git a/Wraithgram/WGSettingsUI/Sources/Screens/WGSettingsDataScreens.swift b/Wraithgram/WGSettingsUI/Sources/Screens/WGSettingsDataScreens.swift
+--- a/Wraithgram/WGSettingsUI/Sources/Screens/WGSettingsDataScreens.swift
++++ b/Wraithgram/WGSettingsUI/Sources/Screens/WGSettingsDataScreens.swift
+@@ -97,6 +97,19 @@
+         icon: .bundle("Chat/Context Menu/Browser"),
+         kind: .action({ menuContext in
+             menuContext.context.sharedContext.applicationBindings.openUrl(wgSourceCodeUrl)
++        })
++    ))
++    // The badge feed of this build comes from the public exteraGram API. Credit the project
++    // as required by exteraGram's ADDITIONAL_TERMS.md; this is not an exteraGram build.
++    WGMenuRegistry.register(WGMenuRow(
++        id: "menu.about.exteraGramBadges",
++        section: .aboutLicense,
++        order: 150,
++        title: { "Badge service: exteraGram" },
++        subtitle: { "https://github.com/exteraSquad/exteraGram" },
++        icon: .bundle("Chat/Context Menu/Browser"),
++        kind: .action({ menuContext in
++            menuContext.context.sharedContext.applicationBindings.openUrl("https://github.com/exteraSquad/exteraGram")
+         })
+     ))
+ }

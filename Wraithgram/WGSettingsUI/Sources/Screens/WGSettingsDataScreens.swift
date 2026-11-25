@@ -99,6 +99,19 @@ func wgRegisterBuiltInRows() {
             menuContext.context.sharedContext.applicationBindings.openUrl(wgSourceCodeUrl)
         })
     ))
+    // The badge feed of this build comes from the public exteraGram API. Credit the project
+    // as required by exteraGram's ADDITIONAL_TERMS.md; this is not an exteraGram build.
+    WGMenuRegistry.register(WGMenuRow(
+        id: "menu.about.exteraGramBadges",
+        section: .aboutLicense,
+        order: 150,
+        title: { "Badge service: exteraGram" },
+        subtitle: { "https://github.com/exteraSquad/exteraGram" },
+        icon: .bundle("Chat/Context Menu/Browser"),
+        kind: .action({ menuContext in
+            menuContext.context.sharedContext.applicationBindings.openUrl("https://github.com/exteraSquad/exteraGram")
+        })
+    ))
 }
 
 /// Wraithgram's languages (owner's decision: en, ru, uk, ar). Names are resolved at display time,
