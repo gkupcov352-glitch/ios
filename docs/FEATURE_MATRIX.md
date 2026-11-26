@@ -47,7 +47,7 @@
 | Что | Где |
 |---|---|
 | Симуляторный workflow | `.github/workflows/build-simulator.yml` (добавляется патчем) |
-| Результат | `Telegram.app` в ZIP-артефакте `Wraithgram-simulator-app`, не `.ipa` |
+| Результат | `Wraithgram.app` в ZIP-артефакте `Wraithgram-simulator-app`, не `.ipa` |
 | Локально на Mac | `build-system/WGBuild.sh`, конфигурация из example-файла |
 | Подробности | [docs/BUILD_SIMULATOR.md](BUILD_SIMULATOR.md) |
 

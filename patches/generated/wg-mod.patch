@@ -2,7 +2,7 @@ diff --git a/.github/workflows/build-simulator.yml b/.github/workflows/build-sim
 new file mode 100644
 --- a/.github/workflows/build-simulator.yml
 +++ b/.github/workflows/build-simulator.yml
-@@ -0,0 +1,115 @@
+@@ -0,0 +1,122 @@
 +# Builds a simulator app only — no resigned IPA, no signing certificate, no sideloading.
 +#
 +# Run it in your fork: Actions → "Build for Simulator (no IPA)" → Run workflow.
@@ -86,20 +86,27 @@ new file mode 100644
 +          WG_BUILD_LOG: ${{ runner.temp }}/wg-build.log
 +        run: build-system/WGBuild.sh
 +
-+      - name: Package Telegram.app (not an IPA)
++      - name: Package Wraithgram.app (not an IPA)
 +        run: |
 +          set -e
-+          if [ -f bazel-bin/Telegram/Telegram.ipa ]; then
-+            unzip -q bazel-bin/Telegram/Telegram.ipa -d sim-unpack
-+          fi
-+          APP_DIR="$(find sim-unpack bazel-bin -type d -name 'Telegram.app' -print -quit 2>/dev/null || true)"
++          ls -l bazel-bin/Telegram/Telegram.ipa
++          unzip -l bazel-bin/Telegram/Telegram.ipa | head -30 || true
++          mkdir -p sim-unpack
++          unzip -q bazel-bin/Telegram/Telegram.ipa -d sim-unpack
++          echo "Extracted apps:"
++          find -L sim-unpack -name '*.app' -print || true
++          # Telegram/BUILD sets bundle_name = "Wraithgram", so the payload is Wraithgram.app.
++          APP_DIR="$(find -L sim-unpack -type d -name 'Wraithgram.app' -print -quit 2>/dev/null || true)"
 +          if [ -z "$APP_DIR" ]; then
-+            echo "::error::Telegram.app was not found after the simulator build"
++            APP_DIR="$(find -L sim-unpack -type d -name '*.app' -print -quit 2>/dev/null || true)"
++          fi
++          if [ -z "$APP_DIR" ]; then
++            echo "::error::No .app was found in bazel-bin/Telegram/Telegram.ipa"
 +            exit 1
 +          fi
 +          mkdir -p simulator-output
-+          cp -R "$APP_DIR" simulator-output/
-+          (cd simulator-output && zip -qry "$GITHUB_WORKSPACE/wraithgram-simulator-app.zip" Telegram.app)
++          cp -RL "$APP_DIR" simulator-output/Wraithgram.app
++          (cd simulator-output && zip -qry "$GITHUB_WORKSPACE/wraithgram-simulator-app.zip" Wraithgram.app)
 +          echo "Packaged: $APP_DIR"
 +
 +      - name: Upload the simulator app

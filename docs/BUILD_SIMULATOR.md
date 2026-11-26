@@ -1,6 +1,6 @@
 # Сборка для симулятора (без IPA)
 
-Этот вариант **не делает подписанный IPA** и не требует сертификатов. Результат — `Telegram.app`
+Этот вариант **не делает подписанный IPA** и не требует сертификатов. Результат — `Wraithgram.app`
 для iOS Simulator, собранный из того же пропатченного дерева Wraithgram.
 
 > На Windows собрать нельзя: нужны macOS, Xcode и Bazel. Здесь подготовлены исходники и workflow;
@@ -30,10 +30,10 @@
    | `bundle_id` | своё, например `com.<вашлогин>.wraithgram.sim` |
    | `runner` | `xcode-27` (версия из `versions.json`) |
 
-5. Скачать артефакт `Wraithgram-simulator-app` (ZIP внутри — `Telegram.app`). Это **не .ipa**:
+5. Скачать артефакт `Wraithgram-simulator-app` (ZIP внутри — `Wraithgram.app`). Это **не .ipa**:
    на iPhone он не ставится и не подписывается.
 
-6. Распаковать ZIP и открыть `Telegram.app` в Xcode → Simulator (или перетащить в уже запущенный
+6. Распаковать ZIP и открыть `Wraithgram.app` в Xcode → Simulator (или перетащить в уже запущенный
    Simulator.app). Симулятор должен соответствовать архитектуре сборки `debug_sim_arm64`
    (Apple Silicon; для Intel-Мака соберите локально с другой конфигурацией).
 
@@ -58,7 +58,7 @@ build-system/WGBuild.sh
 ```sh
 unzip -q bazel-bin/Telegram/Telegram.ipa -d sim-unpack
 open -a Simulator
-# затем перетащите sim-unpack/Payload/Telegram.app в окно симулятора
+# затем перетащите sim-unpack/Payload/Wraithgram.app в окно симулятора
 ```
 
 ## Что проверить в симуляторе
@@ -78,6 +78,6 @@ open -a Simulator
 |---|---|
 | `XCODE_27.2.app is not on this runner` | Выбрать runner с Xcode из `versions.json` |
 | `ERROR: ... configuration.json is missing` | Скопировать example-конфиг (см. выше) |
-| `Telegram.app was not found after the simulator build` | Сборка упала; открыть `build-log-simulator` |
+| `No .app was found in bazel-bin/Telegram/Telegram.ipa` | Внутри IPA должен быть `Wraithgram.app`; если сборка упала, откройте `build-log-simulator` |
 | Приложение не ставится на iPhone | Это симуляторная сборка; для телефона нужен `docs/BUILD.md` |
 | Счётчик бейджей «—» | Сеть/MTProxy блокирует `api.exteragram.app`; проверка на устройстве/CI |

@@ -7,7 +7,7 @@
 
 Если нужен только проверяемый билд без подписи и сайдлоада, используйте
 **Build for Simulator (no IPA)** — инструкция в [docs/BUILD_SIMULATOR.md](BUILD_SIMULATOR.md).
-Workflow из патча собирает `Telegram.app` и кладёт его в артефакт ZIP (не `.ipa`).
+Workflow из патча собирает `Wraithgram.app` и кладёт его в артефакт ZIP (не `.ipa`).
 Ниже описан вариант с IPA для установки на iPhone.
 
 ## 1. Fork и патчи
