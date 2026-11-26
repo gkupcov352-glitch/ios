@@ -9,16 +9,16 @@ import WGHooks
 ///
 /// The status always comes from the public exteraGram catalog. Opening a profile may start a
 /// rate-limited refresh; the next layout draws the answer. Nothing is granted locally.
-enum WGExteraBadgeProfile {
+enum WGExteraBadgeProfileUI {
     private static let pillTag = 9931
 
     static func register() {
         WGPeerInfoHooks.infoRows.register({ info in
-            return WGExteraBadgeProfile.rows(info)
+            return WGExteraBadgeProfileUI.rows(info)
         }, order: 120)
 
         WGPeerInfoHooks.headerDidLayout.register({ header in
-            WGExteraBadgeProfile.updateHeader(header)
+            WGExteraBadgeProfileUI.updateHeader(header)
         }, order: 120)
     }
 

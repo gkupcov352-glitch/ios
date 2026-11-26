@@ -13,7 +13,7 @@ enum WGExteraBadgeAPI {
     static let requestTimeout: Double = 15.0
     static let maxResponseBytes = 2 * 1024 * 1024
 
-    enum Result {
+    enum WGExteraBadgeResult {
         case updated(WGExteraBadgeSnapshot)
         case notModified
         case failed
@@ -23,13 +23,13 @@ enum WGExteraBadgeAPI {
         return URL(string: baseURL + "profiles")
     }
 
-    static func fetch(etag: String?) -> Signal<Result, NoError> {
+    static func fetch(etag: String?) -> Signal<WGExteraBadgeResult, NoError> {
         guard let url = WGExteraBadgeAPI.profilesURL else {
             return .single(.failed)
         }
         let request = WGNetworkRequest(url: url, etag: etag, maxBytes: WGExteraBadgeAPI.maxResponseBytes)
         return WGNetwork.shared.fetch(request)
-        |> map { response -> Result in
+        |> map { response -> WGExteraBadgeResult in
             if response.notModified {
                 return .notModified
             }
@@ -45,7 +45,7 @@ enum WGExteraBadgeAPI {
                 return .failed
             }
         }
-        |> `catch` { _ -> Signal<Result, NoError> in
+        |> `catch` { _ -> Signal<WGExteraBadgeResult, NoError> in
             return .single(.failed)
         }
         |> timeout(WGExteraBadgeAPI.requestTimeout, queue: Queue.concurrentDefaultQueue(), alternate: .single(.failed))

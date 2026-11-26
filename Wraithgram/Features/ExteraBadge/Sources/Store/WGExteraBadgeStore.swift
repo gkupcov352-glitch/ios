@@ -45,7 +45,7 @@ final class WGExteraBadgeStore {
         }
         let now = WGExteraBadgeStore.now()
         let last = max(self.lastRefresh, self.snapshot.fetchedAt)
-        if !force, last > 0, now - last < Int32(WGExteraBadgeSettings.refreshInterval) {
+        if !force, last > 0, now - last < Int32(WGExteraBadgeSettings.refreshInterval.value) {
             return
         }
         self.inFlight = true

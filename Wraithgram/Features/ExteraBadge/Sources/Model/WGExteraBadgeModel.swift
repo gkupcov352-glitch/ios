@@ -1,4 +1,5 @@
 import Foundation
+import WGCore
 
 /// DTO of `GET https://api.exteragram.app/api/v1/profiles`.
 ///

@@ -42,11 +42,11 @@ enum WGExteraBadgeMenu {
                 WGExteraBadgeStore.shared.refreshIfNeeded(force: true)
                 context.presentToast("Запрос к exteraGram отправлен")
             }),
+            isVisible: { _ in WGExteraBadgeSettings.enabled.value },
             label: { _ in
                 let count = WGExteraBadgeStore.shared.snapshot.profiles.count
                 return count > 0 ? "\(count)" : "—"
-            },
-            isVisible: { _ in WGExteraBadgeSettings.enabled.value }
+            }
         ))
     }
 }

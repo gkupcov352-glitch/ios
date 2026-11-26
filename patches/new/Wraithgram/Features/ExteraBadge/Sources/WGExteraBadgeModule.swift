@@ -10,7 +10,7 @@ public enum WGExteraBadgeModule {
     public static func register() {
         WGExteraBadgeSettings.declare()
         WGExteraBadgeMenu.register()
-        WGExteraBadgeProfile.register()
+        WGExteraBadgeProfileUI.register()
         WGExteraBadgeChatList.register()
         _ = WGExteraBadgeStore.shared
     }
