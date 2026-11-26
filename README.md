@@ -1,59 +1,122 @@
-# Wraithgram + exteraGram badge + Reza-фишки — патчи для iOS-сборки
+# Wraithgram + exteraGram badge + Reza-фишки
 
-Набор патчей для **Wraithgram/ios** (база — Telegram iOS 13.1.2). Цель: собрать билд с уже
-имеющимися фичами Wraithgram (приватность, история сообщений, кастомизация), добавить **реальный**
-бейдж саппортера exteraGram через публичный API (не локальную подделку) и пару компактных фишек
-из других iOS-модов. Есть два варианта сборки: для симулятора (**без IPA**) и IPA для iPhone.
+Это **форк [Wraithgram](https://github.com/Wraithgram/ios)** (база — Telegram iOS 13.1.2), а не
+официальный Telegram и не exteraGram. Цель: взять фичи Wraithgram (приватность, история сообщений,
+кастомизация), добавить **реальный** бейдж саппортера exteraGram через публичный API (не локальную
+подделку) и пару компактных фишек из других iOS-модов.
 
-> Это **не exteraGram** и не официальный Telegram.Это форк Wraithgram с дополнительным модулем,
-> который читает публичный список бейджей exteraGram. Имя/логотип exteraGram не используются как
-> имя/иконка приложения; в «О приложении» есть атрибуция и ссылка на репозиторий.
+Готовый `.ipa` выкладывается в [Releases](../../releases) — собирать его самому не нужно.
+
+> Имя и логотип exteraGram не используются как имя/иконка приложения. В «О приложении» есть
+> атрибуция и ссылка на исходный репозиторий. Модуль бейджа только читает публичный список
+> профилей exteraGram.
+
+## Поддержать проект
+
+Если мод полезен — можно кинуть донат: **[https://dalink.to/clawv34](https://dalink.to/clawv34)**.
+Это добровольно и ни на что в приложении не влияет.
+
+## Как установить IPA
+
+1. Откройте [Releases](../../releases) и скачайте `.ipa` из последнего релиза на iPhone
+   (через Safari / Files) или на компьютер.
+2. Выберите способ ниже. На обычном iOS без джейлбрейка IPA нужно **переподписать** своим
+   сертификатом: бесплатный Apple ID живёт 7 дней, платный сертификат — год, TrollStore —
+   пока система это позволяет.
+
+### ESign / GBox / Feather (прямо на iPhone)
+
+Самый простой путь, если IPA уже на телефоне.
+
+1. Установите сайдлоад-приложение (ESign, GBox, Feather или аналог) — как обычно через
+   свой сертификат или DNS/репозиторий, которым вы уже пользуетесь.
+2. Импортируйте **сертификат** (`.p12` + пароль) и **профиль** (`.mobileprovision`), если
+   приложение их просит.
+3. «Импорт» / «+» → выберите скачанный `.ipa`.
+4. Подпишите и установите. Если iOS спросит доверие к разработчику:
+   **Настройки → Основные → VPN и управление устройством** → доверить сертификату.
+5. Если приложение сразу вылетает или «ненадёжный разработчик» не пропадает — сертификат
+   отозван; нужен другой `.p12`.
+
+### AltStore / SideStore (бесплатный Apple ID, ПК или пара)
+
+Подходит, если нет платного сертификата. Срок подписи — **7 дней**, потом нужно обновить
+через AltStore/SideStore (с компьютером или через сопряжение).
+
+1. Поставьте [AltStore](https://altstore.io) (Windows/macOS) или [SideStore](https://sidestore.io)
+   по их официальной инструкции.
+2. На iPhone откройте AltStore/SideStore → **My Apps** / «+» → выберите `.ipa` из Files.
+3. Войдите в Apple ID. После установки держите AltStore/SideStore на устройстве, чтобы
+   продлевать подпись.
+
+Лимит бесплатного Apple ID — **3 приложения** на устройство. Если места нет, удалите старый
+сайдлоад.
+
+### Sideloadly / 3uTools (с компьютера)
+
+1. На ПК: [Sideloadly](https://sideloadly.io) или 3uTools.
+2. Подключите iPhone кабелем, доверьтесь компьютеру.
+3. Перетащите `.ipa`, укажите Apple ID (или свой `.p12`).
+4. Дождитесь установки. Для Apple ID — те же 7 дней и доверие в Настройках.
+
+### TrollStore (если уже стоит)
+
+Если на устройстве есть TrollStore (зависит от версии iOS и эксплойта):
+
+1. Скачайте `.ipa` в Files.
+2. «Поделиться» → **TrollStore** → Install.
+3. Переподпись не нужна, лимит 7 дней не действует.
+
+TrollStore ставится не на все версии iOS. Если его нет — используйте ESign/AltStore, не ищите
+«универсальный» установщик под чужую прошивку.
+
+### Что выбрать
+
+| Способ | Нужен ПК | Срок | Кому подходит |
+|---|---|---|---|
+| ESign / GBox / Feather | Нет | Как у вашего сертификата (часто год) | Уже есть `.p12` |
+| AltStore / SideStore | Для установки и обновления* | 7 дней | Бесплатный Apple ID |
+| Sideloadly / 3uTools | Да | 7 дней или как у `.p12` | Удобнее ставить с компьютера |
+| TrollStore | Нет | Постоянно | Только если TrollStore уже установлен |
+
+\* SideStore после первой настройки может обновлять подпись без постоянного ПК.
+
+После установки откройте приложение, войдите в Telegram. Если вход или пуши ведут себя странно —
+это часто чужой/тестовый `api_id` в сборке, а не «сломанный IPA».
 
 ## Что внутри
 
-| Категория | Что делают патчи |
+| Категория | Что в моде |
 |---|---|
-| База | Wraithgram: GhostMode, AntiDelete, Security, Interface/Appearance, SessionBackup, Vless и др. |
-| exteraGram | Новый модуль `WGExteraBadge`: `GET https://api.exteragram.app/api/v1/profiles`, ETag-кэш на 10 минут, статусы `SUPPORTER`/`DEVELOPER` |
-| UI | Бейдж в профиле (infо-строка + небольшой бейдж у имени) и в списке чатов; включается в «Оформление › Профиль и Настройки › Профиль» |
+| База | Форк Wraithgram: GhostMode, AntiDelete, Security, Interface/Appearance, SessionBackup, Vless и др. |
+| exteraGram | Модуль `WGExteraBadge`: `GET https://api.exteragram.app/api/v1/profiles`, ETag-кэш на 10 минут, статусы `SUPPORTER`/`DEVELOPER` |
+| UI | Бейдж в профиле (инфо-строка + небольшой бейдж у имени) и в списке чатов; включается в «Оформление › Профиль и Настройки › Профиль» |
 | Reza-фишки | `WGQuickActions`: двойной тап → повтор в Избранное и `#id HH:mm:ss` в строке времени (идеи из Reza, код свой, через WGHooks) |
 | Свежий вид | Опциональный `--fresh-ui`: радиусы бабблов 18 pt и размер стикеров 110% по умолчанию |
 | Атрибуция | Строка в «О приложении» со ссылкой на `https://github.com/exteraSquad/exteraGram` |
-| Сборка без IPA | Workflow **Build for Simulator (no IPA)**: артефакт — `Telegram.app` в ZIP, не `.ipa` |
-| Сборка для iPhone | Workflow Wraithgram **Build IPA for re-signing**, затем подпись IPA на iPhone |
 
 Подробности: [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md),
-[docs/BADGE_CONTRACT.md](docs/BADGE_CONTRACT.md), [docs/BUILD.md](docs/BUILD.md),
-[docs/BUILD_SIMULATOR.md](docs/BUILD_SIMULATOR.md).
+[docs/BADGE_CONTRACT.md](docs/BADGE_CONTRACT.md). Для тех, кто сам патчит исходники Wraithgram:
+[docs/BUILD.md](docs/BUILD.md), [docs/BUILD_SIMULATOR.md](docs/BUILD_SIMULATOR.md).
 
-## Быстрый старт
+## Для разработчиков (патчи, не IPA)
 
-1. Fork репозитория `Wraithgram/ios` и клонировать его к себе.
-2. В корне форка выполнить:
+Обычным пользователям этот раздел не нужен — берите IPA из Releases.
+
+1. Fork `Wraithgram/ios` и клонировать его.
+2. В корне форка:
 
    ```powershell
    python patches\apply.py <путь-к-клону-Wraithgram> --fresh-ui
    ```
 
-   Скрипт скопирует модули и workflow, сделает точечные правки; он идемпотентен и создаст
-   `patches/generated/wg-mod.patch` (или `wg-mod-with-fresh-ui.patch` с `--fresh-ui`).
-3. Закоммитить изменения. Дальше — один из двух вариантов:
-   - **Без IPA:** Actions → **Build for Simulator (no IPA)** → скачать `Wraithgram-simulator-app`
-     (ZIP с `Telegram.app`) и открыть в симуляторе. Подробности —
-     [docs/BUILD_SIMULATOR.md](docs/BUILD_SIMULATOR.md).
-   - **Для iPhone:** Actions → **Build IPA for re-signing** → скачать
-     `Wraithgram-for-resign-<build number>`, подписать через ESign/LCSign/AltStore и установить.
-     Подробности — [docs/BUILD.md](docs/BUILD.md).
-
-Готового `.ipa` здесь нет: его собирает ваш fork в GitHub Actions. На Windows только подготовка
-патчей; реальная компиляция требует macOS/Xcode/Bazel.
+   Скрипт идемпотентен и создаст `patches/generated/wg-mod.patch` (или
+   `wg-mod-with-fresh-ui.patch` с `--fresh-ui`).
 
 ## Важное
 
 - Бейдж появляется **только если exteraGram-сервер возвращает ваш ID** в публичном `/profiles`.
   Никакие «свои» статусы локально не выставляются.
-- Для входа нужны свои `api_id`/`api_hash` (секреты `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`).
-  Push с чужим `api_id` может не прийти (`APP_PUSH_CERT_MISSING`).
 - Функции «призрака» (скрытие чтения/набора/статуса) могут нарушать правила Telegram — используйте
   их на свой страх и риск.
 - Проверить контракт API из текущей среды не удалось (`ECONNRESET` к `api.exteragram.app`); файлы
@@ -61,8 +124,8 @@
 
 ## Лицензии и атрибуция
 
-Wraithgram — source-only форк Telegram iOS. exteraGram — GPLv3 с дополнительными условиями
-`ADDITIONAL_TERMS.md`: требуется атрибуция и ссылка на проект, нельзя выдавать мод за exteraGram.
-Патч добавляет такую атрибуцию в раздел «О приложении». Идеи для `WGQuickActions` взяты из
+Это форк **Wraithgram** (source-only форк Telegram iOS). exteraGram — GPLv3 с дополнительными
+условиями `ADDITIONAL_TERMS.md`: нужна атрибуция и ссылка на проект, нельзя выдавать мод за
+exteraGram. Патч добавляет такую атрибуцию в «О приложении». Идеи для `WGQuickActions` взяты из
 [Reza/Regram-ios](https://github.com/RegramDev/Regram-ios); код написан заново через публичные
 хуки Wraithgram, исходники Reza в сборку не входят.
