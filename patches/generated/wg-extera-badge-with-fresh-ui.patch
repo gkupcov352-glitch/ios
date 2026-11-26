@@ -931,3 +931,81 @@ new file mode 100644
 +        WGQuickActionsDecorations.register()
 +    }
 +}
+diff --git a/Wraithgram/Features/Appearance/Settings/Sources/WGAppearanceSettings.swift b/Wraithgram/Features/Appearance/Settings/Sources/WGAppearanceSettings.swift
+--- a/Wraithgram/Features/Appearance/Settings/Sources/WGAppearanceSettings.swift
++++ b/Wraithgram/Features/Appearance/Settings/Sources/WGAppearanceSettings.swift
+@@ -21,8 +21,8 @@
+     // MARK: Bubbles
+ 
+     public static let bubbleEditor = WGSetting<Bool>("appearance.bubbles.editor", default: false)
+-    public static let bubbleIncomingRadius = WGSetting<Double>("appearance.bubbles.incomingRadius", default: 16.0)
+-    public static let bubbleOutgoingRadius = WGSetting<Double>("appearance.bubbles.outgoingRadius", default: 16.0)
++    public static let bubbleIncomingRadius = WGSetting<Double>("appearance.bubbles.incomingRadius", default: 18.0)
++    public static let bubbleOutgoingRadius = WGSetting<Double>("appearance.bubbles.outgoingRadius", default: 18.0)
+     /// Horizontal text inset inside a bubble, pt.
+     public static let bubblePadding = WGSetting<Double>("appearance.bubbles.padding", default: 11.0)
+     /// Share of the upstream maximum bubble width, %.
+@@ -41,7 +41,7 @@
+     // MARK: Stickers
+ 
+     /// %, 50…200 (bigger than 100 since 2026-10-27; a big sticker still fits the chat's width).
+-    public static let stickerSize = WGSetting<Double>("appearance.stickers.size", default: 100.0)
++    public static let stickerSize = WGSetting<Double>("appearance.stickers.size", default: 110.0)
+     public static let stickerHideTime = WGSetting<Bool>("appearance.stickers.hideTime", default: false)
+ 
+     // MARK: Messages
+diff --git a/Wraithgram/Features/BUILD b/Wraithgram/Features/BUILD
+--- a/Wraithgram/Features/BUILD
++++ b/Wraithgram/Features/BUILD
+@@ -31,6 +31,8 @@
+         # W7-RD2: «Дата регистрации»
+         "//Wraithgram/Features/RegDate:WGRegDate",
+         "//Wraithgram/Features/SessionBackup:WGSessionBackup",
++        "//Wraithgram/Features/ExteraBadge:WGExteraBadge",
++        "//Wraithgram/Features/QuickActions:WGQuickActions",
+     ],
+     visibility = [
+         "//visibility:public",
+diff --git a/Wraithgram/Features/Sources/WGFeatures.swift b/Wraithgram/Features/Sources/WGFeatures.swift
+--- a/Wraithgram/Features/Sources/WGFeatures.swift
++++ b/Wraithgram/Features/Sources/WGFeatures.swift
+@@ -16,6 +16,8 @@
+ import WGExtras
+ import WGRegDate
+ import WGSessionBackup
++import WGExteraBadge
++import WGQuickActions
+ 
+ /// Aggregator of the feature modules, called from `AppDelegate` (see FOUNDATION_SPEC §2):
+ /// `WGCore.bootstrap` → `WGFeatures.registerAll()` → `WGCore.runGlobalMigrations()` →
+@@ -44,5 +46,7 @@
+         WGRegDateModule.register()
+         // «Бэкап аккаунтов» (Swiftgram Pro).
+         WGSessionBackupModule.register()
++        WGExteraBadgeModule.register()
++        WGQuickActionsModule.register()
+     }
+ }
+diff --git a/Wraithgram/WGSettingsUI/Sources/Screens/WGSettingsDataScreens.swift b/Wraithgram/WGSettingsUI/Sources/Screens/WGSettingsDataScreens.swift
+--- a/Wraithgram/WGSettingsUI/Sources/Screens/WGSettingsDataScreens.swift
++++ b/Wraithgram/WGSettingsUI/Sources/Screens/WGSettingsDataScreens.swift
+@@ -97,6 +97,19 @@
+         icon: .bundle("Chat/Context Menu/Browser"),
+         kind: .action({ menuContext in
+             menuContext.context.sharedContext.applicationBindings.openUrl(wgSourceCodeUrl)
++        })
++    ))
++    // The badge feed of this build comes from the public exteraGram API. Credit the project
++    // as required by exteraGram's ADDITIONAL_TERMS.md; this is not an exteraGram build.
++    WGMenuRegistry.register(WGMenuRow(
++        id: "menu.about.exteraGramBadges",
++        section: .aboutLicense,
++        order: 150,
++        title: { "Badge service: exteraGram" },
++        subtitle: { "https://github.com/exteraSquad/exteraGram" },
++        icon: .bundle("Chat/Context Menu/Browser"),
++        kind: .action({ menuContext in
++            menuContext.context.sharedContext.applicationBindings.openUrl("https://github.com/exteraSquad/exteraGram")
+         })
+     ))
+ }

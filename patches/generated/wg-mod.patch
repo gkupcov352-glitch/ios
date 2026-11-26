@@ -172,7 +172,7 @@ new file mode 100644
 +    static let requestTimeout: Double = 15.0
 +    static let maxResponseBytes = 2 * 1024 * 1024
 +
-+    enum Result {
++    enum WGExteraBadgeResult {
 +        case updated(WGExteraBadgeSnapshot)
 +        case notModified
 +        case failed
@@ -182,13 +182,13 @@ new file mode 100644
 +        return URL(string: baseURL + "profiles")
 +    }
 +
-+    static func fetch(etag: String?) -> Signal<Result, NoError> {
++    static func fetch(etag: String?) -> Signal<WGExteraBadgeResult, NoError> {
 +        guard let url = WGExteraBadgeAPI.profilesURL else {
 +            return .single(.failed)
 +        }
 +        let request = WGNetworkRequest(url: url, etag: etag, maxBytes: WGExteraBadgeAPI.maxResponseBytes)
 +        return WGNetwork.shared.fetch(request)
-+        |> map { response -> Result in
++        |> map { response -> WGExteraBadgeResult in
 +            if response.notModified {
 +                return .notModified
 +            }
@@ -204,7 +204,7 @@ new file mode 100644
 +                return .failed
 +            }
 +        }
-+        |> `catch` { _ -> Signal<Result, NoError> in
++        |> `catch` { _ -> Signal<WGExteraBadgeResult, NoError> in
 +            return .single(.failed)
 +        }
 +        |> timeout(WGExteraBadgeAPI.requestTimeout, queue: Queue.concurrentDefaultQueue(), alternate: .single(.failed))
@@ -330,11 +330,11 @@ new file mode 100644
 +                WGExteraBadgeStore.shared.refreshIfNeeded(force: true)
 +                context.presentToast("Запрос к exteraGram отправлен")
 +            }),
++            isVisible: { _ in WGExteraBadgeSettings.enabled.value },
 +            label: { _ in
 +                let count = WGExteraBadgeStore.shared.snapshot.profiles.count
 +                return count > 0 ? "\(count)" : "—"
-+            },
-+            isVisible: { _ in WGExteraBadgeSettings.enabled.value }
++            }
 +        ))
 +    }
 +}
@@ -342,8 +342,9 @@ diff --git a/Wraithgram/Features/ExteraBadge/Sources/Model/WGExteraBadgeModel.sw
 new file mode 100644
 --- a/Wraithgram/Features/ExteraBadge/Sources/Model/WGExteraBadgeModel.swift
 +++ b/Wraithgram/Features/ExteraBadge/Sources/Model/WGExteraBadgeModel.swift
-@@ -0,0 +1,120 @@
+@@ -0,0 +1,121 @@
 +import Foundation
++import WGCore
 +
 +/// DTO of `GET https://api.exteragram.app/api/v1/profiles`.
 +///
@@ -479,16 +480,16 @@ new file mode 100644
 +///
 +/// The status always comes from the public exteraGram catalog. Opening a profile may start a
 +/// rate-limited refresh; the next layout draws the answer. Nothing is granted locally.
-+enum WGExteraBadgeProfile {
++enum WGExteraBadgeProfileUI {
 +    private static let pillTag = 9931
 +
 +    static func register() {
 +        WGPeerInfoHooks.infoRows.register({ info in
-+            return WGExteraBadgeProfile.rows(info)
++            return WGExteraBadgeProfileUI.rows(info)
 +        }, order: 120)
 +
 +        WGPeerInfoHooks.headerDidLayout.register({ header in
-+            WGExteraBadgeProfile.updateHeader(header)
++            WGExteraBadgeProfileUI.updateHeader(header)
 +        }, order: 120)
 +    }
 +
@@ -619,7 +620,7 @@ new file mode 100644
 +        }
 +        let now = WGExteraBadgeStore.now()
 +        let last = max(self.lastRefresh, self.snapshot.fetchedAt)
-+        if !force, last > 0, now - last < Int32(WGExteraBadgeSettings.refreshInterval) {
++        if !force, last > 0, now - last < Int32(WGExteraBadgeSettings.refreshInterval.value) {
 +            return
 +        }
 +        self.inFlight = true
@@ -715,7 +716,7 @@ new file mode 100644
 +    public static func register() {
 +        WGExteraBadgeSettings.declare()
 +        WGExteraBadgeMenu.register()
-+        WGExteraBadgeProfile.register()
++        WGExteraBadgeProfileUI.register()
 +        WGExteraBadgeChatList.register()
 +        _ = WGExteraBadgeStore.shared
 +    }
