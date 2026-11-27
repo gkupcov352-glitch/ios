@@ -1,7 +1,7 @@
 # Builds a simulator app only — no resigned IPA, no signing certificate, no sideloading.
 #
 # Run it in your fork: Actions → "Build for Simulator (no IPA)" → Run workflow.
-# The artifact is a ZIP with Telegram.app, not an .ipa. See docs/BUILD_SIMULATOR.md.
+# The artifact is a ZIP with Wraithgram.app, not an .ipa. See docs/BUILD_SIMULATOR.md.
 # Your own TELEGRAM_API_ID / TELEGRAM_API_HASH secrets are recommended; without them the
 # template's public api_id 8 is used and the build logs a warning.
 
